@@ -24,8 +24,11 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler');
+var url = require('url');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URL_DEFAULT = " http://hidden-harbor-6435.herokuapp.com/";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -35,6 +38,7 @@ var assertFileExists = function(infile) {
     }
     return instr;
 };
+
 
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
@@ -55,6 +59,30 @@ var checkHtmlFile = function(htmlfile, checksfile) {
     return out;
 };
 
+
+function download(url, callback) {
+    var resp = rest.get(url);
+    resp.on('complete', function(result) {
+        if (result instanceof Error) {
+            // callback(result);
+            sys.puts('Error: ' + result.message);
+            this.retry(5000); // try again after 5 sec
+            return;
+        }
+		fs.writeFile("downloaded.html", result, function(err) {
+			if(err) 
+			{
+				console.log(err);
+			} else 
+			{
+				console.log("Url File Saved");
+			}
+		});     
+	});
+}
+
+
+
 var clone = function(fn) {
     // Workaround for commander.js issue.
     // http://stackoverflow.com/a/6772648
@@ -65,10 +93,24 @@ if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
-        .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+        .option('-u, --url <url>', 'Path to url')
+        
+    .parse(process.argv);
+   
+      if (program.url) {
+//		fs.openSync("downloaded.html", 'w');
+        download(program.url);
+        var sethtml = cheerioHtmlFile("downloaded.html");
+
+        var checkJson = checkHtmlFile("downloaded.html", program.checks);
+        var outJson = JSON.stringify(checkJson, null, 4);
+		console.log(outJson);
+    } else if (program.file) {
+		var checkJson = checkHtmlFile(program.file, program.checks);
+		var outJson = JSON.stringify(checkJson, null, 4);
+		console.log(outJson); 
+    }
+    
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
